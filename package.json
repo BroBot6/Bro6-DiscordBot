@@ -1,0 +1,14 @@
+{
+    "name": "Discord-Bot-Bro6",
+    "version": "0.1.0",
+    "description": "A Discord Bot written in Node.js",
+    "author": "https://github.com/wihal",
+    "license": "GNU GPL",
+    "dependencies": {
+        "discord.js": "^14.14.1",
+        "dotenv": "^16.4.5"
+    },
+    "scripts": {
+        "start": "node index.js"
+    }
+}
