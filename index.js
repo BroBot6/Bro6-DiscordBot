@@ -31,6 +31,8 @@ const client = new Client({
 });
 
 client.on("ready", async () => {
+  const activities = ["Hello World!", "@Bro6 for help!"];
+
   const commands = [
     {
       name: "uninstall",
@@ -65,9 +67,17 @@ client.on("ready", async () => {
       ],
     },
   ];
+
   for (const command of commands) {
     await client.guilds.cache.get(guildID).commands.create(command);
   }
+
+  setInterval(() => {
+    const status = activities[Math.floor(Math.random() * activities.length)];
+    client.user.setPresence({
+      activities: [{ name: status, type: 0 }],
+    });
+  }, 5000);
   console.log(`Logged in as ${client.user.tag}`);
 });
 
