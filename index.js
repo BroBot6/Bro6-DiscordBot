@@ -2,22 +2,14 @@ require("dotenv").config();
 
 const {
   Client,
-  Intents,
-  MessageEmbed,
-  MessageAttachment,
-  SlashCommandBuilder,
-  Events,
-  Guild,
-  Collection,
-  MessageComponentInteraction,
-  Message,
-  ApplicationCommandOptionType,
+  GatewayIntentBits,
+
 } = require("discord.js");
 
 const fs = require("fs");
 const path = require("path");
-const fetch = require("node-fetch");
-const repos = require("./repos.json");
+const fetch = require('node-fetch-commonjs');
+const settings = require("./settings.json");
 
 const TOKEN = process.env.TOKEN;
 const guildID = process.env.GUILDID;
@@ -27,7 +19,7 @@ const debug = true;
 const extensionsPath = "./src";
 
 const client = new Client({
-  intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES],
+  intents: [GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers, GatewayIntentBits.Guilds],
 });
 
 client.on("ready", async () => {
@@ -62,7 +54,7 @@ client.on("ready", async () => {
           description: "The repo to install from",
           type: 3,
           required: true,
-          choices: repos,
+          choices: settings["repos"],
         },
       ],
     },
@@ -110,22 +102,22 @@ async function uninstallextension(extensionName, interaction) {
     const folder = `${extensionsPath}/${extensionName}`;
     if (fs.existsSync(folder)) {
       fs.rmSync(folder, { recursive: true, force: true });
-    }
+    };
     interaction.reply(`Extension ${extensionName} uninstalled.`);
   } catch (error) {
     interaction.reply(`Error uninstalling extension: ${error}`);
-  }
-}
+  };
+};
 
 async function installextension(extensionName, repo, interaction) {
   try {
     const extensionsIndex = await (await fetch(`${repo}/index.json`)).json();
+
     const extension = extensionsIndex[extensionName];
     if (!extension) return;
 
-    const folder = extension.folder;
     const files = extension.files;
-    if (!folder || !files) return;
+    if (!files) return;
 
     const createDirectories = new Set();
     const writeFiles = [];
@@ -135,11 +127,11 @@ async function installextension(extensionName, repo, interaction) {
       createDirectories.add(filePath);
       for (const file of files[fileType]) {
         writeFiles.push({
-          fileUrl: `${repo}/extensions/${folder}/${fileType}/${file}`,
+          fileUrl: `${repo}/extensions/${extensionName}/${fileType}/${file}`,
           filePath: `${filePath}/${file}`,
         });
-      }
-    }
+      };
+    };
 
     await Promise.all(
       [...createDirectories].map((dir) =>

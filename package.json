@@ -1,14 +1,18 @@
 {
-    "name": "Discord-Bot-Bro6",
+    "name": "discord-bot-bro6",
     "version": "0.1.0",
     "description": "A Discord Bot written in Node.js",
     "author": "https://github.com/wihal",
     "license": "GNU GPL",
     "dependencies": {
         "discord.js": "^14.14.1",
-        "dotenv": "^16.4.5"
+        "dotenv": "^16.4.5",
+        "node-fetch-commonjs": "^3.3.2",
+        "nodemon": "^3.1.0",
+        "sapphire": "^0.0.3"
     },
     "scripts": {
-        "start": "node index.js"
+        "start": "node index.js",
+        "dev": "nodemon"
     }
 }
