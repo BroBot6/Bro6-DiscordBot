@@ -1,15 +1,11 @@
 require("dotenv").config();
 
-const {
-  Client,
-  GatewayIntentBits,
-
-} = require("discord.js");
+const { Client, GatewayIntentBits, EmbedBuilder, Guild, Message, CommandInteraction } = require("discord.js");
 
 const fs = require("fs");
 const path = require("path");
-const fetch = require('node-fetch-commonjs');
-const settings = require("./settings.json");
+const fetch = require("node-fetch-commonjs");
+const BotSettings = require("./settings.json");
 
 const TOKEN = process.env.TOKEN;
 const guildID = process.env.GUILDID;
@@ -19,7 +15,12 @@ const debug = true;
 const extensionsPath = "./src";
 
 const client = new Client({
-  intents: [GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers, GatewayIntentBits.Guilds],
+  intents: [
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.MessageContent
+  ],
 });
 
 client.on("ready", async () => {
@@ -35,6 +36,32 @@ client.on("ready", async () => {
           description: "The extension to uninstall",
           type: 3,
           required: true,
+          choices: installedExtensions(extensionsPath),
+        },
+      ],
+    },
+    {
+      name: "settings",
+      description: "Config variables of extensions",
+      options: [
+        {
+          name: "extension",
+          description: "The extension to uninstall",
+          type: 3,
+          required: true,
+          choices: installedExtensions(extensionsPath),
+        },
+        {
+          name: "key",
+          description: "The key of the value you want to change",
+          type: 3,
+          required: false,
+        },
+        {
+          name: "value",
+          description: "The value you want to change",
+          type: 3,
+          required: false,
         },
       ],
     },
@@ -54,7 +81,7 @@ client.on("ready", async () => {
           description: "The repo to install from",
           type: 3,
           required: true,
-          choices: settings["repos"],
+          choices: BotSettings["repos"],
         },
       ],
     },
@@ -89,6 +116,20 @@ client.on("interactionCreate", async (interaction) => {
     return;
   }
 
+  if (interaction.commandName === "settings") {
+
+    const extensionName = interaction.options.getString("extension");
+    const value = interaction.options.getString("value");
+    const key = interaction.options.getString("key");
+
+    if (key && variable) {
+      setSettings(extensionName, key, value, interaction);
+    } else {
+      showAvailableSettings(extensionName, interaction);
+    }
+    return;
+  }
+
   if (interaction.commandName === "install") {
     const extensionName = interaction.options.getString("extension");
     const repo = interaction.options.getString("repo");
@@ -97,17 +138,78 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
+async function setSettings(extensionName, key, value, interaction) {
+  try {
+    const configFilePath = path.join(extensionsPath, extensionName, "configs");
+    const fullFilePath = path.join(configFilePath, "settings.json");
+
+    if (!fs.existsSync(fullFilePath)) {
+      interaction.reply(`No settings found for ${extensionName}`);
+      return;
+    }
+
+    if (debug) console.log(`settings.json found in ${configFilePath}`);
+
+    const data = JSON.parse(fs.readFileSync(fullFilePath));
+
+    data[key] = value;
+
+    fs.writeFileSync(fullFilePath, JSON.stringify(data, null, 2));
+
+    interaction.reply(`Setting **"${key}"** updated to ${value} for ${extensionName}`);
+  } catch (error) {
+    console.log(error);
+    interaction.reply(`Error setting ${key} for ${extensionName}: ${error}`);
+  }
+}
+
+async function showAvailableSettings(extensionName, interaction) {
+  try {
+    const configFilePath = path.join(extensionsPath, extensionName, "configs");
+    const fullFilePath = path.join(configFilePath, "settings.json");
+    
+    if (!fs.existsSync(fullFilePath)) {
+      interaction.reply(`No settings found for ${extensionName}`);
+      return;
+    }
+
+    if (debug) console.log(`settings.json found in ${configFilePath}`);
+    
+    const data = JSON.parse(fs.readFileSync(fullFilePath));
+    
+    const embed = new EmbedBuilder()
+      .setTitle(`Settings found for ${extensionName}`)
+      .setColor(BotSettings["color"])
+      .setDescription("Possible settings:")
+      .setFooter({ text: "Generated Settings List" });
+
+    for (const [settingKey, settingValue] of Object.entries(data)) {
+      embed.addFields({
+        name: ` • **${settingKey}**:`,
+        value: String(settingValue),
+        inline: true,
+      });
+    }
+
+    interaction.reply({ embeds: [embed.toJSON()] });
+  } catch (error) {
+    console.log(error);
+    interaction.reply(`Error showing settings: ${error}`);
+  }
+}
+
+
 async function uninstallextension(extensionName, interaction) {
   try {
     const folder = `${extensionsPath}/${extensionName}`;
     if (fs.existsSync(folder)) {
       fs.rmSync(folder, { recursive: true, force: true });
-    };
+    }
     interaction.reply(`Extension ${extensionName} uninstalled.`);
   } catch (error) {
     interaction.reply(`Error uninstalling extension: ${error}`);
-  };
-};
+  }
+}
 
 async function installextension(extensionName, repo, interaction) {
   try {
@@ -115,6 +217,7 @@ async function installextension(extensionName, repo, interaction) {
 
     const extension = extensionsIndex[extensionName];
     if (!extension) return;
+    if (debug) console.log(extension);
 
     const files = extension.files;
     if (!files) return;
@@ -130,8 +233,8 @@ async function installextension(extensionName, repo, interaction) {
           fileUrl: `${repo}/extensions/${extensionName}/${fileType}/${file}`,
           filePath: `${filePath}/${file}`,
         });
-      };
-    };
+      }
+    }
 
     await Promise.all(
       [...createDirectories].map((dir) =>
@@ -145,7 +248,21 @@ async function installextension(extensionName, repo, interaction) {
       })
     );
 
-    interaction.reply(`Extension ${extensionName} installed.`);
+    interaction.reply(`Extension ${extension.name} version ${extension.version} installed. `);
+
+    const infoFilePath = `${extensionsPath}/${extensionName}/info.json`;
+    if (!fs.existsSync(infoFilePath)) {
+      await fs.promises.writeFile(infoFilePath, JSON.stringify(extension));
+    } else {
+      const existingInfoJson = await fs.promises.readFile(
+        infoFilePath,
+        "utf-8"
+      );
+      const existingInfo = JSON.parse(existingInfoJson);
+      if (existingInfo.name !== extensionName) {
+        await fs.promises.writeFile(infoFilePath, JSON.stringify(extension));
+      }
+    }
   } catch (error) {
     interaction.reply(`Error installing ${extensionName}: ${error}`);
     return;
@@ -162,6 +279,16 @@ function loadExtensions(dir) {
         ? path.join(dir, entry.name)
         : []
     );
+}
+
+function installedExtensions(srcPath) {
+  const folders = [];
+  fs.readdirSync(srcPath).forEach((file) => {
+    if (fs.lstatSync(`${srcPath}/${file}`).isDirectory()) {
+      folders.push({ name: file, value: file });
+    }
+  });
+  return folders;
 }
 
 for (const file of loadExtensions(extensionsPath)) {
